@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Pomodoro Timer</title>
+    <style>
+        :root {
+            --primary: #ef4444; 
+            --bg: #fef2f2;
+            --text-main: #1f2937;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: var(--bg);
+            margin: 0;
+            transition: background-color 0.4s ease;
+        }
+
+        .ad-space {
+            width: 100%;
+            max-width: 728px;
+            height: 90px;
+            background: #e5e7eb;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #d1d5db;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .timer-container {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            position: relative;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+        }
+
+        .tabs button {
+            background: transparent;
+            border: none;
+            color: #6b7280;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: 0.2s;
+        }
+
+        .tabs button.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .time-display {
+            font-size: 6rem;
+            font-weight: 700;
+            color: var(--text-main);
+            font-variant-numeric: tabular-nums;
+            margin: 1rem 0;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 1.5rem;
+        }
+
+        .controls button, .settings-panel button {
+            border: none;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        #startBtn {
+            background-color: var(--primary);
+            color: white;
+            flex-grow: 1;
+        }
+
+        #startBtn:hover { filter: brightness(0.9); }
+        
+        .secondary-btn {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .secondary-btn:hover { background-color: #e5e7eb; }
+
+        /* Settings Panel UI */
+        .settings-toggle {
+            background: none;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 0.9rem;
+        }
+
+        .settings-panel {
+            display: none; /* Hidden by default */
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: left;
+        }
+
+        .input-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            font-weight: 600;
+            color: #4b5563;
+        }
+
+        .input-group input {
+            width: 70px;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        #saveBtn {
+            width: 100%;
+            background-color: #1f2937;
+            color: white;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="ad-space">Google AdSense Leaderboard (728x90)</div>
+
+    <div class="timer-container">
+        <div class="tabs">
+            <button id="workTab" class="active" onclick="setMode('work')">Focus</button>
+            <button id="breakTab" onclick="setMode('break')">Break</button>
+        </div>
+
+        <div class="time-display" id="timeDisplay">25:00</div>
+
+        <div class="controls">
+            <button id="startBtn" onclick="toggleTimer()">Start</button>
+            <button class="secondary-btn" onclick="resetTimer()">Reset</button>
+        </div>
+
+        <button class="settings-toggle" onclick="toggleSettings()">⚙️ Customize Times</button>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel" id="settingsPanel">
+            <div class="input-group">
+                <label>Focus Time (mins):</label>
+                <input type="number" id="workInput" min="1" max="120">
+            </div>
+            <div class="input-group">
+                <label>Break Time (mins):</label>
+                <input type="number" id="breakInput" min="1" max="60">
+            </div>
+            <button id="saveBtn" onclick="saveSettings()">Save Preferences</button>
+        </div>
+    </div>
+
+    <div class="ad-space">Google AdSense Display Ad (Responsive)</div>
+
+    <script>
+        // 1. Load Custom Times from LocalStorage (or use defaults: 25 & 5)
+        let customWorkMinutes = parseInt(localStorage.getItem('customWorkTime')) || 25;
+        let customBreakMinutes = parseInt(localStorage.getItem('customBreakTime')) || 5;
+
+        // App State
+        let timeLeft = customWorkMinutes * 60; 
+        let timerId = null;
+        let isRunning = false;
+        let currentMode = 'work'; 
+
+        // DOM Elements
+        const display = document.getElementById('timeDisplay');
+        const startBtn = document.getElementById('startBtn');
+        const workTab = document.getElementById('workTab');
+        const breakTab = document.getElementById('breakTab');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const workInput = document.getElementById('workInput');
+        const breakInput = document.getElementById('breakInput');
+
+        // Populate inputs with current settings
+        workInput.value = customWorkMinutes;
+        breakInput.value = customBreakMinutes;
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function updateDisplay() {
+            const timeString = formatTime(timeLeft);
+            display.innerText = timeString;
+            const modeText = currentMode === 'work' ? 'Focus' : 'Break';
+            document.title = `${timeString} - ${modeText}`;
+        }
+
+        function setMode(mode) {
+            if (isRunning) toggleTimer(); 
+
+            currentMode = mode;
+            if (mode === 'work') {
+                timeLeft = customWorkMinutes * 60;
+                document.documentElement.style.setProperty('--primary', '#ef4444'); 
+                document.documentElement.style.setProperty('--bg', '#fef2f2');
+                workTab.classList.add('active');
+                breakTab.classList.remove('active');
+            } else {
+                timeLeft = customBreakMinutes * 60;
+                document.documentElement.style.setProperty('--primary', '#10b981'); 
+                document.documentElement.style.setProperty('--bg', '#ecfdf5');
+                breakTab.classList.add('active');
+                workTab.classList.remove('active');
+            }
+            updateDisplay();
+        }
+
+        function toggleTimer() {
+            if (isRunning) {
+                clearInterval(timerId);
+                startBtn.innerText = "Start";
+                isRunning = false;
+            } else {
+                startBtn.innerText = "Pause";
+                isRunning = true;
+                timerId = setInterval(() => {
+                    timeLeft--;
+                    updateDisplay();
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(timerId);
+                        isRunning = false;
+                        startBtn.innerText = "Start";
+                        if (currentMode === 'work') setMode('break');
+                        else setMode('work');
+                        alert("Time's up!"); 
+                    }
+                }, 1000);
+            }
+        }
+
+        function resetTimer() {
+            if (isRunning) toggleTimer();
+            if (currentMode === 'work') timeLeft = customWorkMinutes * 60;
+            else timeLeft = customBreakMinutes * 60;
+            updateDisplay();
+        }
+
+        // --- New Settings Functions ---
+
+        function toggleSettings() {
+            settingsPanel.style.display = settingsPanel.style.display === "block" ? "none" : "block";
+        }
+
+        function saveSettings() {
+            // Get values from inputs and ensure they are valid numbers
+            const newWork = parseInt(workInput.value);
+            const newBreak = parseInt(breakInput.value);
+
+            if (newWork > 0 && newBreak > 0) {
+                customWorkMinutes = newWork;
+                customBreakMinutes = newBreak;
+
+                // Save to browser LocalStorage
+                localStorage.setItem('customWorkTime', customWorkMinutes);
+                localStorage.setItem('customBreakTime', customBreakMinutes);
+
+                // Apply changes immediately
+                setMode(currentMode);
+                toggleSettings(); // Hide panel
+            } else {
+                alert("Please enter valid times.");
+            }
+        }
+
+        // Initialize display
+        updateDisplay();
+    </script>
+</body>
+</html>
